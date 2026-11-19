@@ -156,12 +156,20 @@ public static class BlenderBridgeProcessor
             Debug.Log($"Opening {extension.ToUpper()} '{assetPath}' in Blender (object: {objType})");
         }
 
-        OpenInBlender(assetPath, modelFullPath);
+        OpenInBlender(assetPath, modelFullPath, AssetDatabase.LoadAssetAtPath<GameObject>(assetPath));
         return true;
     }
 
-    internal static void OpenInBlender(string assetPath, string modelFullPath)
+    internal static void OpenInBlender(string assetPath, string modelFullPath, GameObject materialRoot = null, bool exportedHierarchy = false)
     {
+        try
+        {
+            modelFullPath = BlenderBridgeMaterials.CreateImportRequest(materialRoot, modelFullPath, exportedHierarchy);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[BlenderBridge] Could not transfer material metadata: {ex.Message}");
+        }
         string importResult = TrySendImportToRunningBlenderWithRetries(modelFullPath);
         if (importResult == "OK")
         {
@@ -268,6 +276,12 @@ public static class BlenderBridgeProcessor
                     if (pong != "PONG")
                     {
                         return $"unexpected pong: {pong}";
+                    }
+
+                    if (modelFullPath.EndsWith(".bridge-import", StringComparison.OrdinalIgnoreCase))
+                    {
+                        WriteUtf8Line(stream, "MATERIALS?");
+                        if (ReadUtf8Line(stream).Trim() != "MATERIALS_V1") return "material import requires a new Blender window";
                     }
 
                     WriteUtf8Line(stream, "IMPORT|" + modelFullPath);

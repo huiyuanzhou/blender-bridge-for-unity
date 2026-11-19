@@ -33,7 +33,7 @@ internal static class BlenderBridgeHierarchyExporter
         }
 
         Debug.Log($"[BlenderBridge] Exported hierarchy '{root.name}' to '{exportPath}'.");
-        BlenderBridgeProcessor.OpenInBlender($"Hierarchy: {root.name}", exportPath);
+        BlenderBridgeProcessor.OpenInBlender($"Hierarchy: {root.name}", exportPath, root, true);
     }
 
     [MenuItem(MenuPath, true)]

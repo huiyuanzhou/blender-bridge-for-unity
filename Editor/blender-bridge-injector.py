@@ -34,7 +34,7 @@ _FORCE_BETTER_FBX_IMPORT = os.environ.get("BRIDGE_FORCE_BETTER_FBX_IMPORT", "").
 _FORCE_BUILTIN_FBX_EXPORT = os.environ.get("BRIDGE_FORCE_BUILTIN_FBX_EXPORT", "").lower() in ("1", "true", "yes")
 _VALID_BETTER_EXPORT_AXES = frozenset({"MayaZUp", "OpenGL", "Unity", "Unreal1", "Unreal2"})
 _VALID_BETTER_IMPORT_EDGE_SMOOTHING = frozenset({"None", "Import", "FBXSDK", "Blender"})
-_BRIDGE_SCRIPT_VERSION = "2.13"
+_BRIDGE_SCRIPT_VERSION = "2.14"
 _BRIDGE_MESH_SUFFIX = ".bridge-mesh"
 _BRIDGE_NORMAL_BASELINE_SUFFIX = ".normal-baseline"
 _BRIDGE_POSITION_EPSILON = 1e-5
@@ -165,6 +165,8 @@ def _bridge_accept_loop(port: int):
                         continue
                     if line == "PING":
                         conn.sendall(b"PONG\n")
+                    elif line == "MATERIALS?":
+                        conn.sendall(b"MATERIALS_V1\n")
                     elif line.startswith("IMPORT|"):
                         raw = os.path.normpath(line[7:].strip())
                         if raw and os.path.isfile(raw):
@@ -1413,6 +1415,95 @@ def _export_unity_bridge_mesh(filepath: str) -> None:
         eval_obj.to_mesh_clear()
 
 
+def _material_helpers():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blender_bridge_materials.py")
+    spec = importlib.util.spec_from_file_location("blender_bridge_materials", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _apply_unity_materials(request):
+    """Use renderer slots first; names are a fallback only when unambiguous."""
+    helpers = _material_helpers()
+    records = {entry["id"]: entry for entry in request["materials"]}
+    bindings = request["bindings"]
+    by_name = {}
+    for entry in records.values():
+        by_name.setdefault(entry["name"], []).append(entry)
+    applied = {}
+    imported = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+    source_slots = {obj: [slot.material for slot in obj.material_slots] for obj in imported}
+    for obj in imported:
+        names = []
+        current = obj
+        while current:
+            names.insert(0, current.name)
+            current = current.parent
+        exact = [b for b in bindings if b.get('exported_object_path', b['object_path']) == names]
+        if not exact:
+            # Some importers omit an empty export root. Never resolve duplicate leaves by name.
+            exact = [b for b in bindings if len(b.get('exported_object_path', b['object_path'])) >= len(names)
+                     and b.get('exported_object_path', b['object_path'])[-len(names):] == names]
+        binding = exact[0] if len(exact) == 1 else None
+        for index, slot in enumerate(obj.material_slots):
+            material = source_slots[obj][index]
+            if material is None:
+                continue
+            entry = None
+            if binding and index < len(binding['materials']):
+                entry = records.get(binding['materials'][index])
+            if entry is None:
+                candidates = by_name.get(material.name, [])
+                if len(candidates) == 1:
+                    entry = candidates[0]
+            if not entry or not entry.get('metallic'):
+                continue
+            key = (material.as_pointer(), entry['id'])
+            if key in applied:
+                slot.link = 'OBJECT'
+                slot.material = applied[key]
+                continue
+            texture = entry['metallic']
+            path = texture['path']
+            if not os.path.isfile(path):
+                print(f"BLENDER_BRIDGE_WARN: missing Metallicmap {path!r}")
+                continue
+            # Copy imported materials so slots with distinct Unity materials cannot overwrite each other.
+            target = material.copy()
+            target.name = entry['name']
+            target.use_nodes = True
+            image = bpy.data.images.load(path, check_existing=True)
+            if image.colorspace_settings.name != 'Non-Color' and image.users:
+                image = image.copy()
+            image.colorspace_settings.name = 'Non-Color'
+            image.alpha_mode = 'CHANNEL_PACKED'
+            encoding = entry.get('encoding', 'raw-v1')
+            if encoding == 'raw-v1' or not entry.get('texture_active', True):
+                node = target.node_tree.nodes.new('ShaderNodeTexImage')
+                node.image = image
+                node.label = 'Unity Metallicmap (preserved data)'
+                node['unity_bridge_raw_metallic'] = True
+                print(f"BLENDER_BRIDGE_WARN: preserved inactive/unknown Metallicmap for shader {entry['shader']!r}; preview unchanged")
+            else:
+                group = helpers.apply_packed_map(target, image, encoding=encoding,
+                    metallic_scale=entry['metallic_scale'], smoothness=entry['smoothness'])
+                image_node = group.inputs['Color'].links[0].from_node
+                scale, offset = texture['scale'], texture['offset']
+                if (scale['x'], scale['y'], offset['x'], offset['y']) != (1, 1, 0, 0):
+                    uv = target.node_tree.nodes.new('ShaderNodeTexCoord')
+                    mapping = target.node_tree.nodes.new('ShaderNodeMapping')
+                    mapping.inputs['Scale'].default_value[:2] = (scale['x'], scale['y'])
+                    mapping.inputs['Location'].default_value[:2] = (offset['x'], offset['y'])
+                    target.node_tree.links.new(uv.outputs['UV'], mapping.inputs['Vector'])
+                    target.node_tree.links.new(mapping.outputs['Vector'], image_node.inputs['Vector'])
+            target['unity_bridge_material'] = json.dumps(entry, ensure_ascii=False)
+            slot.link = 'OBJECT'
+            slot.material = target
+            applied[key] = target
+            print(f"BLENDER_BRIDGE: Metallicmap {obj.name}[{index}] -> {image.name} ({encoding})")
+
+
 class UnityModelExporter:
     def __init__(self, model_path):
         self.model_path = model_path
@@ -1421,6 +1512,14 @@ class UnityModelExporter:
 
     def load_model(self):
         self.model_path = os.path.normpath(self.model_path)
+        material_request = None
+        if self.model_path.lower().endswith('.bridge-import'):
+            with open(self.model_path, encoding='utf-8-sig') as handle:
+                material_request = json.load(handle)
+            if material_request.get('version') != 1:
+                raise ValueError('Unsupported Unity material import version')
+            self.model_path = os.path.normpath(material_request['model_path'])
+            self.filename = os.path.basename(self.model_path)
         self.extension = _resolve_model_format(self.model_path)
         print(f"BLENDER_BRIDGE: load_model v{_BRIDGE_SCRIPT_VERSION} -> {self.filename}")
         _plog(f"load_model begin {self.model_path}")
@@ -1474,6 +1573,9 @@ class UnityModelExporter:
 
         if LOAD_TEXTURES:
             self.apply_textures()
+
+        if material_request:
+            _apply_unity_materials(material_request)
 
         if not _SKIP_VIEW_FRAME:
             screen = bpy.context.screen

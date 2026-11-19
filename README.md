@@ -6,7 +6,7 @@
 
 Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blender from Unity, then export straight back to the original asset. Ctrl+S in Blender is overridden so saving writes to the Unity project file instead of a `.blend`.
 
-**Version:** 0.1.14 · **Unity:** 2022.3+ · **Platform:** Windows
+**Version:** 0.1.15 · **Unity:** 2022.3+ · **Platform:** Windows
 
 ## Installing
 
@@ -30,6 +30,7 @@ Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blend
 
 - **Double-click to edit** — open supported 3D assets directly from the Unity Project window
 - **Hierarchy export** — send a selected scene GameObject and its complete child hierarchy to Blender through a temporary FBX (saving that file does not write changes back to the Unity scene)
+- **Metallicmap transfer** — carries assigned Unity `_MetallicGlossMap` textures alongside FBX imports, including renderer material overrides and inactive children. Packed RGBA stays in Non-Color / Channel Packed data. Chicken Scene RGB masks and Unity Standard/URP metallic R + smoothness A receive explicit Metallic/Roughness nodes; unrecognized shader packing is retained as an image with a warning.
 - **Unity Mesh (.mesh / .asset)** — opens Mesh assets through a JSON interchange under `Library/BlenderBridge/`, including meshes with Read/Write disabled
 - **Matching up axis** — Unity Mesh assets are shown Z-up in Blender and converted back to Unity Y-up on save
 - **Hot reuse** — if Blender is already running, the next double-click imports into the same window instead of launching another instance
@@ -142,7 +143,7 @@ MIT
 
 在 Unity 中双击 `.FBX`、`.OBJ`、`.DAE`、Unity Mesh（`.mesh` / `.asset`）资产即可用 Blender 打开编辑；保存时直接写回 Unity 项目里的原文件，而不是存成 `.blend`。Blender 中的 **Ctrl+S** 已被桥接脚本接管。
 
-**版本：** 0.1.14 · **Unity：** 2022.3+ · **平台：** Windows
+**版本：** 0.1.15 · **Unity：** 2022.3+ · **平台：** Windows
 
 ## 安装
 
@@ -166,6 +167,7 @@ MIT
 
 - **双击编辑** — 从 Unity 工程窗口直接打开支持的 3D 资产
 - **Hierarchy 层级导入** — 将选中的场景 GameObject 及其全部子物体通过临时 FBX 打开到 Blender（在 Blender 保存的是临时 FBX，不会回写 Unity 场景）
+- **Metallicmap 传递** — 将 Unity 材质实际引用的 `_MetallicGlossMap` 传入 Blender，支持子物体、隐藏物体和材质覆盖。RGBA 数据使用 Non-Color / Channel Packed；项目 Chicken RGB 遮罩和 Unity Standard/URP 的 R 金属度、A 光滑度有对应的节点连接。未知 Shader 保留原贴图并提示，不猜测通道含义。
 - **Unity Mesh（.mesh / .asset）** — 通过 `Library/BlenderBridge/` 下的 JSON 中转文件往返，也支持未开启 Read/Write 的 Mesh
 - **坐标轴一致** — Unity Mesh 在 Blender 中按 Z 轴朝上显示，保存时自动转换回 Unity 的 Y 轴朝上
 - **热复用** — Blender 已在运行时，再次双击会导入到同一窗口，不会重复启动新实例
