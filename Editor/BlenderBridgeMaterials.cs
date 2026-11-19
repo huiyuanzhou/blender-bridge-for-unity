@@ -20,6 +20,10 @@ internal static class BlenderBridgeMaterials
         public string id;
         public string name;
         public string shader;
+        public TextureData base_texture;
+        public string color_property;
+        public Color base_color = Color.white;
+        public string color_space;
         public TextureData metallic;
         public string encoding;
         public float metallic_scale;
@@ -47,19 +51,35 @@ internal static class BlenderBridgeMaterials
         if (root == null) return modelPath;
         var materials = new List<MaterialData>();
         var bindings = new List<Binding>();
-        var ids = new Dictionary<Material, string>();
+        var ids = new Dictionary<string, string>();
         var exportedPaths = exportedHierarchy ? ExportedPaths(root) : null;
         foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
         {
             if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)) continue;
             var slotIds = new List<string>();
-            foreach (Material material in renderer.sharedMaterials)
+            var rendererBlock = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(rendererBlock);
+            Material[] sharedMaterials = renderer.sharedMaterials;
+            for (int slot = 0; slot < sharedMaterials.Length; slot++)
             {
+                Material material = sharedMaterials[slot];
                 if (material == null) { slotIds.Add(""); continue; }
-                if (!ids.TryGetValue(material, out string id))
+                string colorProperty = material.HasColor("_BaseColor") ? "_BaseColor"
+                    : material.HasColor("_Color") ? "_Color" : "";
+                Color color = string.IsNullOrEmpty(colorProperty) ? Color.white : material.GetColor(colorProperty);
+                var slotBlock = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(slotBlock, slot);
+                // A per-material block takes precedence over the whole renderer block.
+                var block = !slotBlock.isEmpty ? slotBlock : rendererBlock;
+                if (!string.IsNullOrEmpty(colorProperty) && block.HasColor(colorProperty))
+                    color = block.GetColor(colorProperty);
+                bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+                if (linear) color = color.linear;
+                string key = material.GetInstanceID() + ":" + JsonUtility.ToJson(color);
+                if (!ids.TryGetValue(key, out string id))
                 {
                     id = materials.Count.ToString();
-                    ids.Add(material, id);
+                    ids.Add(key, id);
                     string shader = material.shader != null ? material.shader.name : "";
                     bool chicken = IsChickenRgbShader(shader);
                     // Unknown shader packing is preserved as data, without guessing its preview.
@@ -77,6 +97,8 @@ internal static class BlenderBridgeMaterials
                     }
                     materials.Add(new MaterialData {
                         id = id, name = material.name, shader = shader,
+                        base_texture = ReadTexture(material, material.HasProperty("_BaseMap") ? "_BaseMap" : "_MainTex"),
+                        color_property = colorProperty, base_color = color, color_space = linear ? "linear" : "gamma",
                         metallic = metallic, encoding = encoding,
                         metallic_scale = chicken ? ReadFloat(material, "_Metallic", 1) : 1,
                         smoothness = ReadFloat(material, "_Smoothness", ReadFloat(material, "_GlossMapScale", 1)),
@@ -96,7 +118,7 @@ internal static class BlenderBridgeMaterials
             bindings.Add(new Binding { object_path = names.ToArray(), materials = slotIds.ToArray(),
                 exported_object_path = exportedPaths != null ? exportedPaths[renderer.transform] : names.ToArray() });
         }
-        if (!materials.Exists(m => m.metallic != null)) return modelPath;
+        if (!materials.Exists(m => m.metallic != null || !string.IsNullOrEmpty(m.color_property))) return modelPath;
         string directory = Path.Combine(Path.GetDirectoryName(Application.dataPath), "Library/BlenderBridge/Materials");
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".bridge-import");

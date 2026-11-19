@@ -34,7 +34,7 @@ _FORCE_BETTER_FBX_IMPORT = os.environ.get("BRIDGE_FORCE_BETTER_FBX_IMPORT", "").
 _FORCE_BUILTIN_FBX_EXPORT = os.environ.get("BRIDGE_FORCE_BUILTIN_FBX_EXPORT", "").lower() in ("1", "true", "yes")
 _VALID_BETTER_EXPORT_AXES = frozenset({"MayaZUp", "OpenGL", "Unity", "Unreal1", "Unreal2"})
 _VALID_BETTER_IMPORT_EDGE_SMOOTHING = frozenset({"None", "Import", "FBXSDK", "Blender"})
-_BRIDGE_SCRIPT_VERSION = "2.14"
+_BRIDGE_SCRIPT_VERSION = "2.15"
 _BRIDGE_MESH_SUFFIX = ".bridge-mesh"
 _BRIDGE_NORMAL_BASELINE_SUFFIX = ".normal-baseline"
 _BRIDGE_POSITION_EPSILON = 1e-5
@@ -166,7 +166,7 @@ def _bridge_accept_loop(port: int):
                     if line == "PING":
                         conn.sendall(b"PONG\n")
                     elif line == "MATERIALS?":
-                        conn.sendall(b"MATERIALS_V1\n")
+                        conn.sendall(b"MATERIALS_V2\n")
                     elif line.startswith("IMPORT|"):
                         raw = os.path.normpath(line[7:].strip())
                         if raw and os.path.isfile(raw):
@@ -1415,12 +1415,81 @@ def _export_unity_bridge_mesh(filepath: str) -> None:
         eval_obj.to_mesh_clear()
 
 
-def _material_helpers():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blender_bridge_materials.py")
-    spec = importlib.util.spec_from_file_location("blender_bridge_materials", path)
+def _material_helpers(name="blender_bridge_materials"):
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name + ".py")
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _texture_uv_transform(material, image_node, texture):
+    scale, offset = texture['scale'], texture['offset']
+    if (scale['x'], scale['y'], offset['x'], offset['y']) != (1, 1, 0, 0):
+        uv = material.node_tree.nodes.new('ShaderNodeTexCoord')
+        mapping = material.node_tree.nodes.new('ShaderNodeMapping')
+        mapping.inputs['Scale'].default_value[:2] = (scale['x'], scale['y'])
+        mapping.inputs['Location'].default_value[:2] = (offset['x'], offset['y'])
+        material.node_tree.links.new(uv.outputs['UV'], mapping.inputs['Vector'])
+        material.node_tree.links.new(mapping.outputs['Vector'], image_node.inputs['Vector'])
+
+
+def _apply_unity_base_color(material, entry):
+    if not entry.get('color_property'):
+        return
+    helper = _material_helpers('blender_bridge_tints')
+    color = entry['base_color']
+    tint = (color['r'], color['g'], color['b'], color['a'])
+    texture = entry.get('base_texture')
+    shader = next((n for n in material.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    if shader is None:
+        raise ValueError('Unity base color requires a Principled BSDF')
+    if texture and texture.get('path'):
+        if not os.path.isfile(texture['path']):
+            print(f"BLENDER_BRIDGE_WARN: missing base color texture {texture['path']!r}")
+            return
+        image = bpy.data.images.load(texture['path'], check_existing=True)
+        if image.colorspace_settings.name != 'sRGB' and image.users:
+            image = image.copy()
+        image.colorspace_settings.name = 'sRGB'
+        group = helper.apply_base_color_tint(material, image, tint=tint,
+            color_space=entry['color_space'])
+        _texture_uv_transform(material, group.inputs['Color'].links[0].from_node, texture)
+    else:
+        # A constant-only material has no sampled image to multiply.
+        value = list(tint)
+        if entry['color_space'] == 'gamma':
+            value[:3] = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in value[:3]]
+        for link in list(shader.inputs['Base Color'].links):
+            material.node_tree.links.remove(link)
+        shader.inputs['Base Color'].default_value = value
+    print(f"BLENDER_BRIDGE: base tint {material.name} -> {tint} ({entry['color_space']})")
+
+
+def _apply_unity_metallic(material, entry, helpers):
+    texture = entry.get('metallic')
+    if not texture or not texture.get('path'):
+        return
+    path = texture['path']
+    if not os.path.isfile(path):
+        print(f"BLENDER_BRIDGE_WARN: missing Metallicmap {path!r}")
+        return
+    image = bpy.data.images.load(path, check_existing=True)
+    if image.colorspace_settings.name != 'Non-Color' and image.users:
+        image = image.copy()
+    image.colorspace_settings.name = 'Non-Color'
+    image.alpha_mode = 'CHANNEL_PACKED'
+    encoding = entry.get('encoding', 'raw-v1')
+    if encoding == 'raw-v1' or not entry.get('texture_active', True):
+        node = material.node_tree.nodes.new('ShaderNodeTexImage')
+        node.image = image
+        node.label = 'Unity Metallicmap (preserved data)'
+        node['unity_bridge_raw_metallic'] = True
+        print(f"BLENDER_BRIDGE_WARN: preserved inactive/unknown Metallicmap for shader {entry['shader']!r}; preview unchanged")
+    else:
+        group = helpers.apply_packed_map(material, image, encoding=encoding,
+            metallic_scale=entry['metallic_scale'], smoothness=entry['smoothness'])
+        _texture_uv_transform(material, group.inputs['Color'].links[0].from_node, texture)
 
 
 def _apply_unity_materials(request):
@@ -1457,51 +1526,24 @@ def _apply_unity_materials(request):
                 candidates = by_name.get(material.name, [])
                 if len(candidates) == 1:
                     entry = candidates[0]
-            if not entry or not entry.get('metallic'):
+            if not entry or not (entry.get('metallic') or entry.get('color_property')):
                 continue
             key = (material.as_pointer(), entry['id'])
             if key in applied:
                 slot.link = 'OBJECT'
                 slot.material = applied[key]
                 continue
-            texture = entry['metallic']
-            path = texture['path']
-            if not os.path.isfile(path):
-                print(f"BLENDER_BRIDGE_WARN: missing Metallicmap {path!r}")
-                continue
             # Copy imported materials so slots with distinct Unity materials cannot overwrite each other.
             target = material.copy()
             target.name = entry['name']
             target.use_nodes = True
-            image = bpy.data.images.load(path, check_existing=True)
-            if image.colorspace_settings.name != 'Non-Color' and image.users:
-                image = image.copy()
-            image.colorspace_settings.name = 'Non-Color'
-            image.alpha_mode = 'CHANNEL_PACKED'
-            encoding = entry.get('encoding', 'raw-v1')
-            if encoding == 'raw-v1' or not entry.get('texture_active', True):
-                node = target.node_tree.nodes.new('ShaderNodeTexImage')
-                node.image = image
-                node.label = 'Unity Metallicmap (preserved data)'
-                node['unity_bridge_raw_metallic'] = True
-                print(f"BLENDER_BRIDGE_WARN: preserved inactive/unknown Metallicmap for shader {entry['shader']!r}; preview unchanged")
-            else:
-                group = helpers.apply_packed_map(target, image, encoding=encoding,
-                    metallic_scale=entry['metallic_scale'], smoothness=entry['smoothness'])
-                image_node = group.inputs['Color'].links[0].from_node
-                scale, offset = texture['scale'], texture['offset']
-                if (scale['x'], scale['y'], offset['x'], offset['y']) != (1, 1, 0, 0):
-                    uv = target.node_tree.nodes.new('ShaderNodeTexCoord')
-                    mapping = target.node_tree.nodes.new('ShaderNodeMapping')
-                    mapping.inputs['Scale'].default_value[:2] = (scale['x'], scale['y'])
-                    mapping.inputs['Location'].default_value[:2] = (offset['x'], offset['y'])
-                    target.node_tree.links.new(uv.outputs['UV'], mapping.inputs['Vector'])
-                    target.node_tree.links.new(mapping.outputs['Vector'], image_node.inputs['Vector'])
+            _apply_unity_base_color(target, entry)
+            _apply_unity_metallic(target, entry, helpers)
             target['unity_bridge_material'] = json.dumps(entry, ensure_ascii=False)
             slot.link = 'OBJECT'
             slot.material = target
             applied[key] = target
-            print(f"BLENDER_BRIDGE: Metallicmap {obj.name}[{index}] -> {image.name} ({encoding})")
+            print(f"BLENDER_BRIDGE: material {obj.name}[{index}] -> {target.name}")
 
 
 class UnityModelExporter:

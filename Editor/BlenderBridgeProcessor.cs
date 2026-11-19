@@ -281,7 +281,7 @@ public static class BlenderBridgeProcessor
                     if (modelFullPath.EndsWith(".bridge-import", StringComparison.OrdinalIgnoreCase))
                     {
                         WriteUtf8Line(stream, "MATERIALS?");
-                        if (ReadUtf8Line(stream).Trim() != "MATERIALS_V1") return "material import requires a new Blender window";
+                        if (ReadUtf8Line(stream).Trim() != "MATERIALS_V2") return "material import requires a new Blender window";
                     }
 
                     WriteUtf8Line(stream, "IMPORT|" + modelFullPath);
