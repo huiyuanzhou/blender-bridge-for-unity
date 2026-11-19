@@ -160,7 +160,7 @@ public static class BlenderBridgeProcessor
         return true;
     }
 
-    private static void OpenInBlender(string assetPath, string modelFullPath)
+    internal static void OpenInBlender(string assetPath, string modelFullPath)
     {
         string importResult = TrySendImportToRunningBlenderWithRetries(modelFullPath);
         if (importResult == "OK")

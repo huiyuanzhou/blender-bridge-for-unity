@@ -6,7 +6,7 @@
 
 Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blender from Unity, then export straight back to the original asset. Ctrl+S in Blender is overridden so saving writes to the Unity project file instead of a `.blend`.
 
-**Version:** 0.1.12 · **Unity:** 2022.3+ · **Platform:** Windows
+**Version:** 0.1.13 · **Unity:** 2022.3+ · **Platform:** Windows
 
 ## Installing
 
@@ -22,18 +22,19 @@ Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blend
 ## Quick start
 
 1. Set your Blender executable path in **Edit > Project Settings > Blender Bridge** (see [Configuration](#configuration)).
-2. Double-click an `.fbx`, `.obj`, `.dae`, `.mesh`, or Mesh `.asset` in the Unity Project window.
-3. Edit the model in Blender.
-4. Press **Ctrl+S** or use **File → Export → … (back to original Unity asset)** to write back to Unity.
+2. For an asset round-trip, double-click an `.fbx`, `.obj`, `.dae`, `.mesh`, or Mesh `.asset` in the Unity Project window, edit it in Blender, then press **Ctrl+S** or use **File → Export → … (back to original Unity asset)**.
+3. For a scene hierarchy, install the Unity FBX Exporter package, select its root GameObject in the Unity Hierarchy, and choose **Blender Bridge → Open Selected Hierarchy in Blender** (or **GameObject → Blender Bridge → Open Hierarchy in Blender**).
+4. Edit the exported hierarchy in Blender. This workflow opens a temporary FBX under `Library/BlenderBridge/Hierarchy`; saving it updates that temporary file only and does not modify the Unity scene.
 
 ## Features
 
 - **Double-click to edit** — open supported 3D assets directly from the Unity Project window
+- **Hierarchy export** — send a selected scene GameObject and its complete child hierarchy to Blender through a temporary FBX (saving that file does not write changes back to the Unity scene)
 - **Unity Mesh (.mesh / .asset)** — opens Mesh assets through a JSON interchange under `Library/BlenderBridge/`, including meshes with Read/Write disabled
 - **Matching up axis** — Unity Mesh assets are shown Z-up in Blender and converted back to Unity Y-up on save
 - **Hot reuse** — if Blender is already running, the next double-click imports into the same window instead of launching another instance
 - **Auto focus** — when hot-reusing Blender, the window is brought to the foreground automatically
-- **Save back to Unity** — Ctrl+S and the File → Export menu export to the original asset path
+- **Asset save back to Unity** — Ctrl+S and the File → Export menu export edited project assets to their original paths
 - **Format preserved** — round-trip stays in the same format (FBX / OBJ / DAE / Mesh)
 - **Unity-aware FBX** — reads Unity `.meta` importer settings (normals, smooth angle, axis) for better round-trip fidelity
 - **Better FBX support** — uses the [Better FBX Importer & Exporter](https://blendermarket.com/products/better-fbx-importer-exporter) addon when installed; falls back to Blender's built-in FBX importer/exporter
@@ -52,6 +53,7 @@ Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blend
 | -------------------- | --------------------------------------------------------------------------------------------------------- |
 | **Windows**          | Editor integration uses Windows process and window APIs                                                   |
 | **Blender 5.x**      | Default path targets Blender 5.1; other versions can be selected in Project Settings                     |
+| **Unity FBX Exporter** | Required for the Hierarchy export command; discovered at runtime and optional for asset double-click workflows |
 | **Better FBX addon** | Strongly recommended for FBX (especially ASCII FBX and correct normals). Built-in FBX is used as fallback |
 
 
@@ -140,7 +142,7 @@ MIT
 
 在 Unity 中双击 `.FBX`、`.OBJ`、`.DAE`、Unity Mesh（`.mesh` / `.asset`）资产即可用 Blender 打开编辑；保存时直接写回 Unity 项目里的原文件，而不是存成 `.blend`。Blender 中的 **Ctrl+S** 已被桥接脚本接管。
 
-**版本：** 0.1.12 · **Unity：** 2022.3+ · **平台：** Windows
+**版本：** 0.1.13 · **Unity：** 2022.3+ · **平台：** Windows
 
 ## 安装
 
@@ -156,18 +158,19 @@ MIT
 ## 快速上手
 
 1. 在 Unity 的 **Edit > Project Settings > Blender Bridge** 中设置 Blender 可执行文件路径（见 [配置说明](#配置说明)）。
-2. 在 Unity **Project** 窗口双击 `.fbx`、`.obj`、`.dae`、`.mesh` 或 Mesh 类型的 `.asset` 资产。
-3. 在 Blender 中编辑模型。
-4. 按 **Ctrl+S**，或使用 **File → Export → … (back to original Unity asset)** 导出回 Unity。
+2. 资产往返流程：在 Unity **Project** 窗口双击 `.fbx`、`.obj`、`.dae`、`.mesh` 或 Mesh 类型的 `.asset`，在 Blender 中编辑后按 **Ctrl+S** 或使用 **File → Export → … (back to original Unity asset)**。
+3. 场景层级流程：安装 Unity FBX Exporter，在 Unity **Hierarchy** 中选中根 GameObject，然后选择 **Blender Bridge → Open Selected Hierarchy in Blender**（或 **GameObject → Blender Bridge → Open Hierarchy in Blender**）。
+4. 在 Blender 中编辑导出的层级。该流程会在 `Library/BlenderBridge/Hierarchy` 下打开临时 FBX；保存只会更新这个临时文件，不会修改 Unity 场景。
 
 ## 功能特性
 
 - **双击编辑** — 从 Unity 工程窗口直接打开支持的 3D 资产
+- **Hierarchy 层级导入** — 将选中的场景 GameObject 及其全部子物体通过临时 FBX 打开到 Blender（在 Blender 保存的是临时 FBX，不会回写 Unity 场景）
 - **Unity Mesh（.mesh / .asset）** — 通过 `Library/BlenderBridge/` 下的 JSON 中转文件往返，也支持未开启 Read/Write 的 Mesh
 - **坐标轴一致** — Unity Mesh 在 Blender 中按 Z 轴朝上显示，保存时自动转换回 Unity 的 Y 轴朝上
 - **热复用** — Blender 已在运行时，再次双击会导入到同一窗口，不会重复启动新实例
 - **自动置前** — 热复用导入时，Blender 窗口会自动弹到最前面
-- **保存回 Unity** — Ctrl+S 和导出菜单都会写回原资产路径
+- **资产保存回 Unity** — Ctrl+S 和导出菜单会把编辑后的工程资产写回原路径
 - **格式保持不变** — 往返编辑保持原格式（FBX / OBJ / DAE / Mesh）
 - **读取 Unity 导入设置** — 从 `.meta` 读取法线、平滑角度、轴向等，提升往返一致性
 - **Better FBX 支持** — 已安装 [Better FBX Importer & Exporter](https://blendermarket.com/products/better-fbx-importer-exporter) 时优先使用；否则回退到 Blender 内置 FBX 导入/导出
@@ -184,6 +187,7 @@ MIT
 | ----------------- | ----------------------------------------- |
 | **Windows**       | 编辑器集成依赖 Windows 进程与窗口 API                 |
 | **Blender 5.x**   | 默认路径为 Blender 5.1；其他版本可在 Project Settings 中选择 |
+| **Unity FBX Exporter** | 使用 Hierarchy 层级导入命令时需要；插件运行时查找该包，资产双击流程不强制要求 |
 | **Better FBX 插件** | 强烈建议安装（ASCII FBX 与法线一致性尤其需要）；未安装时使用内置 FBX |
 
 
