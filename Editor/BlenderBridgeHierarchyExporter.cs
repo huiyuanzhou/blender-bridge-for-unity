@@ -22,7 +22,7 @@ internal static class BlenderBridgeHierarchyExporter
         if (!IsValidSceneGameObject(root))
         {
             Debug.LogError(
-                "[BlenderBridge] Select a GameObject from a loaded scene before exporting its hierarchy.");
+                "[BlenderBridge] Select a GameObject from a loaded scene or Prefab Mode before exporting its hierarchy.");
             return;
         }
 
@@ -56,10 +56,22 @@ internal static class BlenderBridgeHierarchyExporter
 
     private static bool IsValidSceneGameObject(GameObject gameObject)
     {
-        return gameObject != null
-            && gameObject.scene.IsValid()
-            && !EditorSceneManager.IsPreviewScene(gameObject.scene)
-            && !EditorUtility.IsPersistent(gameObject);
+        if (gameObject == null
+            || !gameObject.scene.IsValid()
+            || EditorUtility.IsPersistent(gameObject))
+        {
+            return false;
+        }
+
+        if (!EditorSceneManager.IsPreviewScene(gameObject.scene))
+        {
+            return true;
+        }
+
+        // Prefab Mode uses a preview scene too. Allow its editable contents,
+        // while keeping Inspector previews and other temporary objects excluded.
+        PrefabStage prefabStage = PrefabStageUtility.GetPrefabStage(gameObject);
+        return prefabStage != null && prefabStage.IsPartOfPrefabContents(gameObject);
     }
 
     private static bool TryExportHierarchy(GameObject root, out string exportPath, out string error)
