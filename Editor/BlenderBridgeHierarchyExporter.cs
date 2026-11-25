@@ -1,13 +1,13 @@
 using System;
 using System.IO;
-using System.Reflection;
 using UnityEditor;
+using UnityEditor.Formats.Fbx.Exporter;
 using UnityEditor.SceneManagement;
 using UnityEditor.ShortcutManagement;
 using UnityEngine;
 
 /// <summary>
-/// Exports the selected scene hierarchy through Unity's optional FBX Exporter package
+/// Exports the selected scene hierarchy through Unity's FBX Exporter package
 /// and opens the resulting temporary FBX with the existing Blender Bridge pipeline.
 /// </summary>
 internal static class BlenderBridgeHierarchyExporter
@@ -73,15 +73,6 @@ internal static class BlenderBridgeHierarchyExporter
         exportPath = null;
         error = null;
 
-        MethodInfo exportMethod = FindExportObjectMethod();
-        if (exportMethod == null)
-        {
-            error =
-                "Unity FBX Exporter was not found. Install the com.unity.formats.fbx package " +
-                "and ensure UnityEditor.Formats.Fbx.Exporter.ModelExporter is available.";
-            return false;
-        }
-
         try
         {
             string projectRoot = Path.GetDirectoryName(Application.dataPath);
@@ -94,7 +85,7 @@ internal static class BlenderBridgeHierarchyExporter
                 $"{safeName}_{DateTime.UtcNow:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}.fbx");
             exportPath = Path.GetFullPath(exportPath);
 
-            exportMethod.Invoke(null, new object[] { exportPath, root });
+            ModelExporter.ExportObject(exportPath, root);
             if (!File.Exists(exportPath))
             {
                 error = $"The FBX exporter completed without creating '{exportPath}'.";
@@ -104,69 +95,12 @@ internal static class BlenderBridgeHierarchyExporter
 
             return true;
         }
-        catch (TargetInvocationException ex)
-        {
-            Exception cause = ex.InnerException ?? ex;
-            error = $"FBX ExportObject failed: {cause.Message}";
-            exportPath = null;
-            return false;
-        }
         catch (Exception ex)
         {
             error = $"FBX export failed: {ex.Message}";
             exportPath = null;
             return false;
         }
-    }
-
-    private static MethodInfo FindExportObjectMethod()
-    {
-        const string typeName = "UnityEditor.Formats.Fbx.Exporter.ModelExporter";
-        const string assemblyQualifiedTypeName = typeName + ", Unity.Formats.Fbx.Editor";
-        Type exporterType = Type.GetType(assemblyQualifiedTypeName, false);
-
-        if (exporterType == null)
-        {
-            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                try
-                {
-                    exporterType = assembly.GetType(typeName, false);
-                }
-                catch (ReflectionTypeLoadException)
-                {
-                    // A partially loadable editor assembly cannot provide the exporter type.
-                }
-
-                if (exporterType != null)
-                {
-                    break;
-                }
-            }
-        }
-
-        if (exporterType == null)
-        {
-            return null;
-        }
-
-        foreach (MethodInfo method in exporterType.GetMethods(BindingFlags.Public | BindingFlags.Static))
-        {
-            if (!string.Equals(method.Name, "ExportObject", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            ParameterInfo[] parameters = method.GetParameters();
-            if (parameters.Length == 2
-                && parameters[0].ParameterType == typeof(string)
-                && typeof(UnityEngine.Object).IsAssignableFrom(parameters[1].ParameterType))
-            {
-                return method;
-            }
-        }
-
-        return null;
     }
 
     private static string MakeSafeFileName(string name)

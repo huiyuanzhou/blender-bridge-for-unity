@@ -6,7 +6,7 @@
 
 Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blender from Unity, then export straight back to the original asset. Ctrl+S in Blender is overridden so saving writes to the Unity project file instead of a `.blend`.
 
-**Version:** 0.1.18 · **Unity:** 2022.3+ · **Platform:** Windows
+**Version:** 0.1.19 · **Unity:** 2022.3+ · **Platform:** Windows
 
 ## Installing
 
@@ -15,15 +15,17 @@ Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blend
 3. Choose **Add package from git URL**
 4. Enter:
   ```
-   https://github.com/huiyuanzhou/blender-bridge-for-unity.git
+   https://github.com/huiyuanzhou/blender-bridge-for-unity.git#v0.1.19
   ```
 5. Done — configure your Blender path (see [Configuration](#configuration)).
+
+If the project contains a manual copy of FBX Exporter or Autodesk FBX SDK under `Assets`, back up any local changes and migrate those copies to Package Manager before upgrading. Keeping both copies causes duplicate assemblies.
 
 ## Quick start
 
 1. Set your Blender executable path in **Edit > Project Settings > Blender Bridge** (see [Configuration](#configuration)).
 2. For an asset round-trip, double-click an `.fbx`, `.obj`, `.dae`, `.mesh`, or Mesh `.asset` in the Unity Project window, edit it in Blender, then press **Ctrl+S** or use **File → Export → … (back to original Unity asset)**.
-3. For a scene hierarchy, install the Unity FBX Exporter package, select its root GameObject in the Unity Hierarchy, and press **Shift+F9**. You can also use **GameObject → Blender Bridge → Open Hierarchy in Blender**. In Prefab Mode, select the prefab root or any child to export that object and its descendants.
+3. For a scene hierarchy, select its root GameObject in the Unity Hierarchy, and press **Shift+F9**. You can also use **GameObject → Blender Bridge → Open Hierarchy in Blender**. In Prefab Mode, select the prefab root or any child to export that object and its descendants.
 4. Edit the exported hierarchy in Blender. This workflow opens a temporary FBX under `Library/BlenderBridge/Hierarchy`; saving it updates that temporary file only and does not modify the Unity scene.
 
 ## Features
@@ -55,7 +57,7 @@ Open `.FBX`, `.OBJ`, `.DAE`, and Unity Mesh (`.mesh` / `.asset`) assets in Blend
 | -------------------- | --------------------------------------------------------------------------------------------------------- |
 | **Windows**          | Editor integration uses Windows process and window APIs                                                   |
 | **Blender 5.x**      | Default path targets Blender 5.1; other versions can be selected in Project Settings                     |
-| **Unity FBX Exporter** | Required for the Hierarchy export command; discovered at runtime and optional for asset double-click workflows |
+| **Unity FBX Exporter** | Unity Package Manager installs FBX Exporter 5.1.6 with Blender Bridge for hierarchy export. |
 | **Better FBX addon** | Strongly recommended for FBX (especially ASCII FBX and correct normals). Built-in FBX is used as fallback |
 
 
@@ -139,7 +141,7 @@ MIT
 
 在 Unity 中双击 `.FBX`、`.OBJ`、`.DAE`、Unity Mesh（`.mesh` / `.asset`）资产即可用 Blender 打开编辑；保存时直接写回 Unity 项目里的原文件，而不是存成 `.blend`。Blender 中的 **Ctrl+S** 已被桥接脚本接管。
 
-**版本：** 0.1.18 · **Unity：** 2022.3+ · **平台：** Windows
+**版本：** 0.1.19 · **Unity：** 2022.3+ · **平台：** Windows
 
 ## 安装
 
@@ -148,15 +150,17 @@ MIT
 3. 选择 **Add package from git URL**（从 Git URL 添加包）
 4. 填入：
   ```
-   https://github.com/huiyuanzhou/blender-bridge-for-unity.git
+   https://github.com/huiyuanzhou/blender-bridge-for-unity.git#v0.1.19
   ```
 5. 完成。记得配置 Blender 路径（见下方 [配置说明](#配置说明)）。
+
+如果项目的 `Assets` 下已有手动放入的 FBX Exporter 或 Autodesk FBX SDK，请先备份本地改动，将这些包迁移到 Package Manager，再升级 Blender Bridge。两份同时存在会导致程序集重名。
 
 ## 快速上手
 
 1. 在 Unity 的 **Edit > Project Settings > Blender Bridge** 中设置 Blender 可执行文件路径（见 [配置说明](#配置说明)）。
 2. 资产往返流程：在 Unity **Project** 窗口双击 `.fbx`、`.obj`、`.dae`、`.mesh` 或 Mesh 类型的 `.asset`，在 Blender 中编辑后按 **Ctrl+S** 或使用 **File → Export → … (back to original Unity asset)**。
-3. 场景层级流程：安装 Unity FBX Exporter，在 Unity **Hierarchy** 中选中根 GameObject，然后按 **Shift+F9**。也可以使用 **GameObject → Blender Bridge → Open Hierarchy in Blender**。在预制体编辑模式下，也可以选中预制体根物体或任意子物体，导出该物体及其后代。
+3. 场景层级流程：在 Unity **Hierarchy** 中选中根 GameObject，然后按 **Shift+F9**。也可以使用 **GameObject → Blender Bridge → Open Hierarchy in Blender**。在预制体编辑模式下，也可以选中预制体根物体或任意子物体，导出该物体及其后代。
 4. 在 Blender 中编辑导出的层级。该流程会在 `Library/BlenderBridge/Hierarchy` 下打开临时 FBX；保存只会更新这个临时文件，不会修改 Unity 场景。
 
 ## 功能特性
@@ -186,7 +190,7 @@ MIT
 | ----------------- | ----------------------------------------- |
 | **Windows**       | 编辑器集成依赖 Windows 进程与窗口 API                 |
 | **Blender 5.x**   | 默认路径为 Blender 5.1；其他版本可在 Project Settings 中选择 |
-| **Unity FBX Exporter** | 使用 Hierarchy 层级导入命令时需要；插件运行时查找该包，资产双击流程不强制要求 |
+| **Unity FBX Exporter** | Unity Package Manager 会随 Blender Bridge 自动安装层级导出所需的 FBX Exporter 5.1.6。 |
 | **Better FBX 插件** | 强烈建议安装（ASCII FBX 与法线一致性尤其需要）；未安装时使用内置 FBX |
 
 

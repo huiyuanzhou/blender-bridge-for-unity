@@ -1,7 +1,7 @@
 {
     "name": "BlenderBridge",
     "rootNamespace": "",
-    "references": [],
+    "references": ["Unity.Formats.Fbx.Editor"],
     "includePlatforms": [
         "Editor"
     ],
