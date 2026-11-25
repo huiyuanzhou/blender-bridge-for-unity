@@ -4,3 +4,7 @@ Editor/__pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+temp/
+.specstory/
+.cursorindexingignore
+Editor/__pycache__.meta

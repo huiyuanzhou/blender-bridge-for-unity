@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEditor.ShortcutManagement;
 using UnityEngine;
 
 /// <summary>
@@ -11,11 +12,10 @@ using UnityEngine;
 /// </summary>
 internal static class BlenderBridgeHierarchyExporter
 {
-    private const string MenuPath = "Blender Bridge/Open Selected Hierarchy in Blender";
     private const string GameObjectMenuPath = "GameObject/Blender Bridge/Open Hierarchy in Blender";
     private const string TempDirectory = "Library/BlenderBridge/Hierarchy";
 
-    [MenuItem(MenuPath, false, 2000)]
+    [Shortcut("Blender Bridge/Open Selected Hierarchy in Blender", KeyCode.F9, ShortcutModifiers.Shift)]
     private static void OpenSelectedHierarchy()
     {
         GameObject root = Selection.activeGameObject;
@@ -34,12 +34,6 @@ internal static class BlenderBridgeHierarchyExporter
 
         Debug.Log($"[BlenderBridge] Exported hierarchy '{root.name}' to '{exportPath}'.");
         BlenderBridgeProcessor.OpenInBlender($"Hierarchy: {root.name}", exportPath, root, true);
-    }
-
-    [MenuItem(MenuPath, true)]
-    private static bool ValidateOpenSelectedHierarchy()
-    {
-        return IsValidSceneGameObject(Selection.activeGameObject);
     }
 
     [MenuItem(GameObjectMenuPath, false, 49)]

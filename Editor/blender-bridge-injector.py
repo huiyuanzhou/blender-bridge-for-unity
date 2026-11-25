@@ -13,9 +13,6 @@ from mathutils import Matrix
 
 bpy.context.preferences.view.show_splash = False
 
-CLOSE_AFTER_QUICK_SAVE = True
-CLOSE_AFTER_MANUAL_SAVE = False
-
 LOAD_TEXTURES = False
 TEXTURE_PATH = r""
 TEXTURE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".tga", ".bmp"]
@@ -34,7 +31,7 @@ _FORCE_BETTER_FBX_IMPORT = os.environ.get("BRIDGE_FORCE_BETTER_FBX_IMPORT", "").
 _FORCE_BUILTIN_FBX_EXPORT = os.environ.get("BRIDGE_FORCE_BUILTIN_FBX_EXPORT", "").lower() in ("1", "true", "yes")
 _VALID_BETTER_EXPORT_AXES = frozenset({"MayaZUp", "OpenGL", "Unity", "Unreal1", "Unreal2"})
 _VALID_BETTER_IMPORT_EDGE_SMOOTHING = frozenset({"None", "Import", "FBXSDK", "Blender"})
-_BRIDGE_SCRIPT_VERSION = "2.15"
+_BRIDGE_SCRIPT_VERSION = "2.16"
 _BRIDGE_MESH_SUFFIX = ".bridge-mesh"
 _BRIDGE_NORMAL_BASELINE_SUFFIX = ".normal-baseline"
 _BRIDGE_POSITION_EPSILON = 1e-5
@@ -1756,8 +1753,6 @@ class WM_OT_save_unity_model(bpy.types.Operator):
     bl_description = "Export back to Unity"
     bl_options = {"REGISTER"}
 
-    from_shortcut: bpy.props.BoolProperty(default=False)  # type: ignore
-
     def execute(self, context):
         if "unity_model_path" not in context.scene:
             bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")
@@ -1769,11 +1764,6 @@ class WM_OT_save_unity_model(bpy.types.Operator):
         try:
             UnityModelExporter.export_to_unity(path, file_format)
             self.report({"INFO"}, f"Saved '{os.path.basename(path)}' to Unity")
-
-            if self.from_shortcut and CLOSE_AFTER_QUICK_SAVE:
-                bpy.ops.wm.quit_blender()
-            elif not self.from_shortcut and CLOSE_AFTER_MANUAL_SAVE:
-                bpy.ops.wm.quit_blender()
 
         except Exception as e:
             self.report({"ERROR"}, f"Save failed '{str(e)}'")
@@ -1808,7 +1798,6 @@ def register():
     if kc:
         km = kc.keymaps.new(name="Window", space_type="EMPTY")
         kmi = km.keymap_items.new(WM_OT_save_unity_model.bl_idname, "S", "PRESS", ctrl=True)
-        kmi.properties.from_shortcut = True
         addon_keymaps.append((km, kmi))
 
 
